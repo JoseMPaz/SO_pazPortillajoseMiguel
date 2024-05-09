@@ -22,10 +22,10 @@ int main(int argc, char* argv[])
 	leer_valor_de_config (config, "PUERTO_ESCUCHA_INTERRUPT", &puerto_escucha_interrupt , log);
 	
 	crear_conexion (socket_cliente_cpu, puerto_memoria, ip_memoria, log);//Inicia la conexion con la memoria
+	
 	socket_escucha_dispatch = crear_socket_servidor (puerto_escucha_dispatch, log);
 	socket_escucha_interrupt = crear_socket_servidor (puerto_escucha_interrupt, log);
 	
-
 	
 	/*conecta como servidor dispatch*/
 	dispatch_log->socket = socket_escucha_dispatch;
@@ -39,6 +39,7 @@ int main(int argc, char* argv[])
 	pthread_create (&hilo_interrupt, NULL, atender_clientes , (void *) interrup_log);
 	pthread_detach(hilo_interrupt);
 		   
+	/*Hilo de consola*/
 	pthread_create (&hilo_consola, NULL, leer_de_consola_a_log , (void *) log);
 	pthread_detach(hilo_consola);
     

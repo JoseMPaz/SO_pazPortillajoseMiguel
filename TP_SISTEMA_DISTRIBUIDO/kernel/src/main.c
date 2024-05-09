@@ -6,24 +6,61 @@ int main (void)
 {
 	t_log * log = NULL;
 	t_config * config = NULL;
-	char * ip_memoria, * puerto_memoria;
-	int * socket_kernel;
-	pthread_t hilo_memoria;
+	char * puerto_escucha_kernel, * ip_memoria, * puerto_memoria, * ip_cpu, * puerto_cpu_dispatch, * puerto_cpu_interrupt;
+	int * socket_kernel_a_memoria = (int *) malloc (sizeof (int));
+	int * socket_kernel_a_cpu_dispatch = (int *) malloc (sizeof (int));
+	int * socket_kernel_a_cpu_interrupt = (int *) malloc (sizeof (int));
+	pthread_t hilo_memoria, hilo_consola, hilo_kernel, hilo_cpu_dispatch, hilo_cpu_interrupt;
+	t_escucha * kernek_log = (t_escucha *) malloc (sizeof (t_escucha));
+	int socket_escucha_kernel;
 	
 	iniciar_log (&log, "kernel.log", "KERNEL_LOG");
 	iniciar_config (&config, "kernel.config", log);
-	leer_valor_de_config (config, "IP_MEMORIA", &ip_memoria , log);
-	leer_valor_de_config (config, "PUERTO_MEMORIA", &puerto_memoria , log);
-	socket_kernel = (int *) malloc (sizeof (int));
-	crear_conexion (socket_kernel, puerto_memoria, ip_memoria, log);//Inicia la conexion con la memoria
-	pthread_create (&hilo_memoria, NULL, enviar_saludo , (void *) socket_kernel);
+	
+	leer_valor_de_config (config, "PUERTO_ESCUCHA", &puerto_escucha_kernel, log);
+	leer_valor_de_config (config, "IP_MEMORIA", &ip_memoria, log);
+	leer_valor_de_config (config, "PUERTO_MEMORIA", &puerto_memoria, log);
+	leer_valor_de_config (config, "IP_CPU", &ip_cpu, log);
+	leer_valor_de_config (config, "PUERTO_CPU_DISPATCH", &puerto_cpu_dispatch, log);
+	leer_valor_de_config (config, "PUERTO_CPU_INTERRUPT", &puerto_cpu_interrupt, log);
+	
+	socket_escucha_kernel = crear_socket_servidor (puerto_escucha_kernel, log);//Se marca como socket de escucha
+
+	crear_conexion (socket_kernel_a_memoria, puerto_memoria, ip_memoria, log);//Inicia la conexion con la memoria
+	crear_conexion (socket_kernel_a_cpu_dispatch, puerto_cpu_dispatch, ip_cpu, log);//Inicia la conexion con cpu dispatch
+	crear_conexion (socket_kernel_a_cpu_interrupt, puerto_cpu_interrupt, ip_cpu, log);//Inicia la conexion con cpu interrupt
+	
+	/*conecta como servidor kernel*/
+	kernek_log->socket = socket_escucha_kernel;
+	kernek_log->log = log;
+	pthread_create (&hilo_kernel, NULL, atender_clientes , (void *) kernek_log);
+	pthread_detach(hilo_kernel);
+	
+	/*Hilo de consola*/
+	pthread_create (&hilo_consola, NULL, leer_de_consola_a_log , (void *) log);
+	pthread_detach(hilo_consola);
+	
+	/*Saluda a la memoria*/
+	pthread_create (&hilo_memoria, NULL, enviar_saludo , (void *) socket_kernel_a_memoria);
 	pthread_detach(hilo_memoria);
 	   
-	leer_de_consola_a_log (log);
-    
+	/*Saluda a cpu dispatch*/
+	pthread_create (&hilo_cpu_dispatch, NULL, enviar_saludo , (void *) socket_kernel_a_cpu_dispatch);
+	pthread_detach(hilo_cpu_dispatch);
+	
+	/*Saluda a cpu interrupt*/
+	pthread_create (&hilo_cpu_interrupt, NULL, enviar_saludo , (void *) socket_kernel_a_cpu_interrupt);
+	pthread_detach(hilo_cpu_interrupt);
+
 	pthread_exit (NULL);
-	close (*socket_kernel);
-	free (socket_kernel);
+	
+	free (kernek_log);
+	close (*socket_kernel_a_memoria);
+	free (socket_kernel_a_memoria);
+	close (*socket_kernel_a_cpu_dispatch);
+	free (socket_kernel_a_cpu_dispatch);
+	close (*socket_kernel_a_cpu_interrupt);
+	free (socket_kernel_a_cpu_interrupt);
 	log_destroy (log);
 	config_destroy (config);
 
@@ -35,47 +72,11 @@ void * enviar_saludo (void * socket_kernel)
 {
 	int i;
 	
-	for (i = 0; i < 20; i++)
+	for (i = 0; i < 5; i++)
 	{
-		enviar_mensaje ("HOLA MEMORIA, SOY KERNEL", *((int *)socket_kernel));
+		enviar_mensaje ("HOLA, SOY KERNEL", *((int *)socket_kernel));
 		sleep (1.5);
 	}
 	return NULL;
 }
-/*
-	pthread_create: Esta función se utiliza para crear un nuevo hilo. Su prototipo es:
-	
-	int pthread_create (	pthread_t * puntero_de_identificador_de_hilo, const pthread_attr_t * puntero_atributos_del_hilo, 
-								void * (*puntero_a_funcion_que_se_va_a_ejecutar) (void *), void * puntero_a_argumento_de_funcion_a_ejecutar);
-								
-	pthread_t * puntero_de_identificador_de_hilo: Un puntero a una variable donde se almacenará el identificador del hilo creado.
-	const pthread_attr_t * puntero_atributos_del_hilo:	Un puntero a un objeto pthread_attr_t que contiene los atributos del hilo que se creará. 
-																		Puedes pasar NULL si quieres usar los atributos por defecto.
-	void * (*puntero_a_funcion_que_se_va_a_ejecutar)(void *): Un puntero a la función que se ejecutará en el hilo recién creado.
-	void * puntero_a_argumento_de_funcion_a_ejecutar: Un puntero a un argumento que se pasará a la función a ejecutar.
-*/
 
-/*
-	pthread_detach: Esta función se utiliza para indicar que el hilo en cuestión debe ser desvinculado (detached) de su hilo padre. Su prototipo es:
-	
-	int pthread_detach(pthread_t puntero_de_identificador_de_hilo);
-	
-	pthread_t puntero_de_identificador_de_hilo: El identificador del hilo que se va a desvincular.
-												
-	Cuando un hilo es desvinculado, los recursos asociados con él se liberan automáticamente una vez que el hilo termina su ejecución.
-*/
-
-
-/*
-	pthread_join: Esta función se utiliza para esperar a que un hilo termine su ejecución. Su prototipo es:
-
-	int pthread_join(pthread_t puntero_de_identificador_de_hilo, void ** puntero_del_valor_de_retorno_del_hilo);
-
-	pthread_t puntero_de_identificador_de_hilo: El identificador del hilo del que se quiere esperar la terminación.
-	void ** puntero_del_valor_de_retorno_del_hilo:	Un puntero donde se almacenará el valor de retorno del hilo. 
-																	Puedes pasar NULL si no necesitas este valor.
-	
-	Cuando llamas a pthread_join, el hilo que llama se bloquea hasta que el hilo especificado termina su ejecución. 
-	Si puntero_del_valor_de_retorno_del_hilo no es NULL, el valor retornado por el hilo se almacenará en la dirección de memoria 
-	apuntada por puntero_del_valor_de_retorno_del_hilo.
-*/
