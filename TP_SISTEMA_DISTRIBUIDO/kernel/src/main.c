@@ -1,5 +1,47 @@
-#include "kernel.h"
+#include "main.h"
 
+void * enviar_saludo (void * socket_kernel);
+
+int main (void)
+{
+	t_log * log = NULL;
+	t_config * config = NULL;
+	char * ip_memoria, * puerto_memoria;
+	int * socket_kernel;
+	pthread_t hilo_memoria;
+	
+	iniciar_log (&log, "kernel.log", "KERNEL_LOG");
+	iniciar_config (&config, "kernel.config", log);
+	leer_valor_de_config (config, "IP_MEMORIA", &ip_memoria , log);
+	leer_valor_de_config (config, "PUERTO_MEMORIA", &puerto_memoria , log);
+	socket_kernel = (int *) malloc (sizeof (int));
+	crear_conexion (socket_kernel, puerto_memoria, ip_memoria, log);//Inicia la conexion con la memoria
+	pthread_create (&hilo_memoria, NULL, enviar_saludo , (void *) socket_kernel);
+	pthread_detach(hilo_memoria);
+	   
+	leer_de_consola_a_log (log);
+    
+	pthread_exit (NULL);
+	close (*socket_kernel);
+	free (socket_kernel);
+	log_destroy (log);
+	config_destroy (config);
+
+
+	return EXIT_SUCCESS;
+}
+
+void * enviar_saludo (void * socket_kernel)
+{
+	int i;
+	
+	for (i = 0; i < 20; i++)
+	{
+		enviar_mensaje ("HOLA MEMORIA, SOY KERNEL", *((int *)socket_kernel));
+		sleep (1.5);
+	}
+	return NULL;
+}
 /*
 	pthread_create: Esta función se utiliza para crear un nuevo hilo. Su prototipo es:
 	
@@ -37,71 +79,3 @@
 	Si puntero_del_valor_de_retorno_del_hilo no es NULL, el valor retornado por el hilo se almacenará en la dirección de memoria 
 	apuntada por puntero_del_valor_de_retorno_del_hilo.
 */
-
-int main (void)
-{
-
-    
-    //void * (*pf)(void *);
-    //pf = iniciar_consola;
-    // -------CREACION DE LOGS-------
-    kernel_logger = iniciar_logger ("kernel.log", "KERNEL_LOG");              
-
-    // -------LOG PROPIO-------
-   // nuestro_log_kernel = iniciar_logger("nuestro_kernel.log", "nuestro_log_kernel");              
-    
-    // -------CREACION DE CONFIGS-------
-    kernel_config = iniciar_config ("../kernel/kernel.config");
-
-    inicializar_kernel();
-
-	// ------- CONEXIONES -------
-	/* El Kernel debe poder conectarse al CPU y a la memoria */
-
-	//------ KERNEL SE CONECTA A CPU-----------
-	fd_cpu = crear_conexion (IP_CPU, PUERTO_CPU_DISPATCH);
-    
-
-	// ------- KERNEL SE CONECTA A MEMORIA-------
-	fd_memoria = crear_conexion (IP_MEMORIA , PUERTO_MEMORIA);	
-
-    //------- Inicio al Kernel como servidor ---------
-	fd_kernel = iniciar_servidor (PUERTO_ESCUCHA, kernel_logger, "KERNEL INICIADO CORRECTAMENTE");
-    
-    //-------- KERNEL ESPERA A I/O-----------
-	
-    fd_entradasalida = esperar_cliente (fd_kernel, kernel_logger, "ENTRADA SALIDA");
-
-    //-------- KERNEL ATIENDE A I/O----------
-	pthread_t hilo_consola;
-	pthread_create(&hilo_consola, NULL, iniciar_consola, NULL);	
-	pthread_join(hilo_consola,NULL);
-	
-	pthread_t hilo_io;
-	pthread_create(&hilo_io, NULL, (void*)atender_io, NULL);
-	pthread_join(hilo_io,NULL);
-	//pthread_detach(hilo_io);
-		
-
-    //realizar_operacion (fd_entradasalida, kernel_logger);
-
-    
-
-    //--------INICIALIZAR CONSOLA------
-    /* int pthread_create(	pthread_t * hilo, const pthread_attr_t * atributos_de_hilo,
-                   			void *	(*funcion_a_ejecutar) (void *), void * argumentos de la funcion);	*/
-
-	//pthread_detach(hilo_consola);
-
-	//pthread_join(hilo_io,NULL);
-	
-	//puts ("Antes de consola\n");
-   //iniciar_consola(NULL);
-	//puts ("Despues de consola\n");
-	//pthread_exit (NULL);
-//--------LIBERAMOS MEMORIA----------
-	config_destroy (kernel_config);
-	//pthread_join(hilo_io,NULL);
-
-	return EXIT_SUCCESS;
-}

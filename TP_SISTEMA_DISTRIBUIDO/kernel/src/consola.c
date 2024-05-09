@@ -1,5 +1,6 @@
 #include "consola.h"
 
+/*
 void * iniciar_consola(void * arg)
 {
 	char * leido = NULL;
@@ -73,7 +74,7 @@ bool validacion_de_instruccion_de_consola(char * leido)
     string_array_destroy(comando_consola);
     return resultado_validacion;
 }
-/*void atender_instruccion_validada(char * leido)
+void atender_instruccion_validada(char * leido)
 {
     //char** comando_consola = string_split(leido, " ");
     //t_buffer* un_buffer = crear_buffer();  ESTO LO HACEMOS 

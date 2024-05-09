@@ -1,10 +1,7 @@
 #ifndef _PCB_H_
 #define _PCB_H_
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <utils/hello.h>
-#include <utils/util.h>
+#include <utils/utils.h>
 
 typedef struct
 {
