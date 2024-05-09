@@ -52,10 +52,16 @@ typedef struct
 	t_log * log;
 }t_parametro_servidor;
 
+typedef struct
+{
+	int socket;
+	t_log * log;
+}t_escucha;
+
 void iniciar_log (t_log ** log, char * archivo_log, char * etiqueta_log);
 void iniciar_config (t_config ** config, char * archivo_config, t_log * log);
 bool leer_valor_de_config (t_config * config, char * clave, char ** valor , t_log * log);
-void leer_de_consola_a_log (t_log * log);
+void * leer_de_consola_a_log (void * arg);
 void crear_conexion (int * socket_cliente, char * puerto_servidor, char * ip_servidor, t_log * log);
 void solicitar_atencion (int socket_cliente, char * puerto_servidor, t_addrinfo * server_info, t_log * log);
 
@@ -71,7 +77,7 @@ void agregar_a_paquete (t_paquete * paquete, void * valor, int longitud);
 int crear_socket_servidor (char * puerto_servidor, t_log * log);
 void asignar_direccion_local_a_socket ( int * socket, t_addrinfo * server_info, t_log * log);
 void marcar_como_socket_de_escucha (int * socket_servidor, t_log * log);
-void atender_clientes (int socket_servidor, t_log * log);
+void * atender_clientes (void * escucha);
 void * atender (void * socket_bidireccional);
 int recibir_operacion(int socket_cliente);
 void recibir_mensaje (int socket_cliente, t_log * log);

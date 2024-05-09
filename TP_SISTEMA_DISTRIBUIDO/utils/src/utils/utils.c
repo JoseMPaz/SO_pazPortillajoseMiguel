@@ -60,8 +60,9 @@ bool leer_valor_de_config (t_config * config, char * clave, char ** valor , t_lo
 	return false;
 }
 
-void leer_de_consola_a_log (t_log * log)
+void * leer_de_consola_a_log (void * arg)
 {
+	t_log * log = (t_log *) arg;
 	char * leido = NULL;
 	
 	do
@@ -73,7 +74,7 @@ void leer_de_consola_a_log (t_log * log)
 	}while( strcmp ( leido , CADENA_VACIA) != 0 );
 	free (leido);
 		
-	return;
+	return NULL;;
 }
 
 
@@ -248,9 +249,12 @@ void marcar_como_socket_de_escucha (int * socket_servidor, t_log * log)
 	return;
 }
 
-void atender_clientes (int socket_servidor, t_log * log)
+void * atender_clientes (void * escucha)
 {
 	int cantidad_de_conexiones = 0;
+	t_escucha * socket_log = (t_escucha *) escucha;
+	int socket_servidor = socket_log->socket;
+	t_log * log = socket_log->log;
 	t_parametro_servidor * parametro_servidor = (t_parametro_servidor *) malloc ( sizeof (t_parametro_servidor) );
 	
 	log_info (log, "%s", "Inicia la atencion a los clientes");
@@ -265,11 +269,12 @@ void atender_clientes (int socket_servidor, t_log * log)
 		parametro_servidor->cantidad_de_conexiones = &cantidad_de_conexiones;
 		parametro_servidor->log = log;
 		pthread_create (&hilo, NULL, atender, (void *) parametro_servidor);
-		pthread_detach(hilo);
 		cantidad_de_conexiones++;
+		pthread_detach(hilo);	
 	}
 	free(parametro_servidor);
-	return;
+	pthread_exit (NULL);
+	return NULL;
 }
 
 void * atender (void * argumento)
