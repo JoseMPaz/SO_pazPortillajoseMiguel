@@ -1,5 +1,86 @@
 #include <utils/utils.h>
 
+/********************** Funciones de Clientes **************************/
+int crear_socket_cliente (char * puerto_servidor, char * ip_servidor, t_log * log)
+{
+	int socket_cliente;
+	t_addrinfo * server_info;
+	
+	establecer_como_cliente (&server_info, puerto_servidor, ip_servidor);
+
+	if ( (socket_cliente = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol)) < 0)
+	{
+		log_error (log, "%s%s", "No se logro crear el socket del cliente con el puerto: ", puerto_servidor);
+		exit (EXIT_FAILURE);
+	}
+	log_info(log, "Se creo el socket cliente");
+	freeaddrinfo(server_info);
+
+	return socket_cliente;
+}
+
+void establecer_como_cliente (t_addrinfo ** server_info, char * puerto_servidor, char * ip_servidor)
+{
+	t_addrinfo hints;
+	
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	
+	getaddrinfo(ip_servidor, puerto_servidor, &hints, server_info);//llamada al sistema
+	
+	return;
+}
+
+void * conectar_a_servidor (void * datos_conexion)
+{
+	t_dato_conexion * info_conexion = (t_dato_conexion *) datos_conexion;
+	int socket_cliente = info_conexion->socket_cliente;
+	char * puerto_servidor = info_conexion->puerto_servidor, * ip_servidor = info_conexion->ip_servidor;
+	t_log * log = info_conexion->log;
+	t_addrinfo * server_info;
+	pthread_t hilo;
+	t_dato_enviado * dato = (t_dato_enviado *) malloc (sizeof (t_dato_enviado));
+
+	establecer_como_cliente (&server_info, puerto_servidor, ip_servidor);
+	
+	if ( connect (socket_cliente, server_info->ai_addr, server_info->ai_addrlen) == -1)
+	{
+		log_error (log, "%s%s", "No se logro establecer la conexion con el cliente del puerto: ", puerto_servidor);
+		exit (EXIT_FAILURE);
+	}
+	char * saludo = (char *) malloc (sizeof(char) * (strlen ("Hola Servidor") + 1));
+	strcpy (saludo,"Hola Servidor");
+	dato->saludo = saludo;
+	dato->socket_cliente = socket_cliente;	
+
+	pthread_create (&hilo, NULL, info_conexion->proceso , (void *) dato);
+	pthread_detach(hilo);
+	pthread_exit (NULL);
+	
+	free (saludo);
+	free (dato);
+	freeaddrinfo(server_info);
+	return NULL;
+}
+
+void * saludar_a_cliente (void * dato)
+{
+	t_dato_enviado * info = (t_dato_enviado *) dato;
+	char * saludo = info->saludo;
+	int socket_cliente = info->socket_cliente;	
+	int i;
+
+	for (i = 0; i < 20; i++)
+	{
+		enviar_mensaje (saludo, socket_cliente);	// Enviamos al servidor el mensaje HOLA MUNDO
+		sleep (2);	
+	}
+	enviar_paquete_desde_consola (socket_cliente);// Armamos y enviamos un paquete
+	
+	return NULL;
+}
+
 void crear_conexion (int * socket_cliente, char * puerto_servidor, char * ip_servidor, t_log * log)
 {
 	t_addrinfo hints, * server_info;
@@ -19,64 +100,6 @@ void crear_conexion (int * socket_cliente, char * puerto_servidor, char * ip_ser
 	return;
 }
 
-void iniciar_log (t_log ** log, char * archivo_log, char * etiqueta_log)
-{
-	*log = log_create (archivo_log, etiqueta_log, true, LOG_LEVEL_INFO);
-	
-	if (*log == NULL)
-	{
-		log_error (*log, "%s%s", ERROR_APERTURA_LOG, archivo_log);
-		exit (EXIT_FAILURE);
-	}
-	log_info (*log, "%s", DELIMITADOR_LOG);
-	log_info (*log, "%s%s", APERTURA_DE_ARCHIVO, archivo_log);
-	
-	return;
-}
-
-void iniciar_config (t_config ** config, char * archivo_config, t_log * log)
-{
-	*config = config_create (archivo_config);
-	
-	if (*config == NULL)
-	{
-		log_error (log, "%s%s", ERROR_APERTURA_CONFIG, archivo_config);
-		exit (EXIT_FAILURE);
-	}
-	log_info (log, "%s%s", APERTURA_DE_ARCHIVO, archivo_config);
-	
-	return;
-}
-
-bool leer_valor_de_config (t_config * config, char * clave, char ** valor , t_log * log)
-{
-	if (config_has_property (config, clave))//Valida que existan las claves en config
-	{
-		*valor = config_get_string_value(config, clave);//Guarda el ip del servidor que se encontraba en config
-		log_info (log, "%s%s%s%s", VALOR_DE_CONFIG, clave, " = ", *valor);
-		return true;
-	}
-	log_error (log, "%s%s", CLAVE_NO_ENCONTRADA , clave);
-	return false;
-}
-
-void leer_de_consola_a_log (t_log * log)
-{
-	char * leido = NULL;
-	
-	do
-	{
-		if ( strcmp ( ( leido = readline ("Ingrese cadena(finaliza con un enter):") ), CADENA_VACIA) == 0 )
-			continue;
-		log_info (log, "%s%s", "Consola: ", leido);
-		free (leido);
-	}while( strcmp ( leido , CADENA_VACIA) != 0 );
-	free (leido);
-		
-	return;
-}
-
-
 void solicitar_atencion (int socket_cliente, char * puerto_servidor, t_addrinfo * server_info, t_log * log)
 {
 	log_info (log, "%s", "Solicita atencion al servidor");
@@ -90,7 +113,7 @@ void solicitar_atencion (int socket_cliente, char * puerto_servidor, t_addrinfo 
 	return;
 }
 
-/*************************************************************************************/
+
 /*Para enviar mensajes*/
 void enviar_mensaje (char * mensaje, int socket_cliente)
 {
@@ -203,17 +226,13 @@ void agregar_a_paquete (t_paquete * paquete, void * valor, int longitud)
 	return;
 }
 
-/***************************************************************************************/
+/********************** Funciones de Clientes **************************/
 int crear_socket_servidor (char * puerto_servidor, t_log * log)
 {
 	int socket_servidor;
-	t_addrinfo hints, * server_info;
+	t_addrinfo * server_info;
 
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags = AI_PASSIVE;//IP LOCAL
-	getaddrinfo(NULL, puerto_servidor, &hints, &server_info);//llamada al sistema, devuelve información de red sobre la IP y puerto de servidor
+	establecer_como_servidor (&server_info, puerto_servidor);	
 	if ( (socket_servidor = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol)) < 0)
 	{
 		log_error (log, "%s%s", "No se logro crear el socket del servidor con el puerto: ", puerto_servidor);
@@ -223,7 +242,19 @@ int crear_socket_servidor (char * puerto_servidor, t_log * log)
 	asignar_direccion_local_a_socket ( &socket_servidor, server_info, log);
 	freeaddrinfo(server_info);
 	marcar_como_socket_de_escucha (&socket_servidor, log);
+	
 	return socket_servidor;
+}
+
+void establecer_como_servidor (t_addrinfo **server_info, char * puerto_servidor)
+{
+	t_addrinfo hints;
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_PASSIVE;//IP LOCAL
+	getaddrinfo(NULL, puerto_servidor, &hints, server_info);//llamada al sistema, devuelve información de red sobre la IP y puerto de servidor
+	return;
 }
 
 void asignar_direccion_local_a_socket ( int * socket, t_addrinfo * server_info, t_log * log)
@@ -233,7 +264,6 @@ void asignar_direccion_local_a_socket ( int * socket, t_addrinfo * server_info, 
 		log_error (log, "%s", "No se logro asignar direccion al socket");
 		exit (EXIT_FAILURE);
 	}
-	
 	return;
 }
 
@@ -244,13 +274,15 @@ void marcar_como_socket_de_escucha (int * socket_servidor, t_log * log)
 		log_error (log, "%s", "No se logro colocar al socket servidor, como socket de escucha");
 		exit (EXIT_FAILURE);
 	}
-	
 	return;
 }
 
-void atender_clientes (int socket_servidor, t_log * log)
+void * atender_clientes (void * escucha)
 {
 	int cantidad_de_conexiones = 0;
+	t_escucha * socket_log = (t_escucha *) escucha;
+	int socket_servidor = socket_log->socket;
+	t_log * log = socket_log->log;
 	t_parametro_servidor * parametro_servidor = (t_parametro_servidor *) malloc ( sizeof (t_parametro_servidor) );
 	
 	log_info (log, "%s", "Inicia la atencion a los clientes");
@@ -265,11 +297,12 @@ void atender_clientes (int socket_servidor, t_log * log)
 		parametro_servidor->cantidad_de_conexiones = &cantidad_de_conexiones;
 		parametro_servidor->log = log;
 		pthread_create (&hilo, NULL, atender, (void *) parametro_servidor);
-		pthread_detach(hilo);
 		cantidad_de_conexiones++;
+		pthread_detach(hilo);	
 	}
 	free(parametro_servidor);
-	return;
+	pthread_exit (NULL);
+	return NULL;
 }
 
 void * atender (void * argumento)
@@ -377,4 +410,62 @@ void loggear_mensajes (t_list * self, t_log * log)
 	return;
 }
 
+/********************** Funciones Auxiliares **************************/
+void iniciar_log (t_log ** log, char * archivo_log, char * etiqueta_log)
+{
+	*log = log_create (archivo_log, etiqueta_log, true, LOG_LEVEL_INFO);
+	
+	if (*log == NULL)
+	{
+		log_error (*log, "%s%s", ERROR_APERTURA_LOG, archivo_log);
+		exit (EXIT_FAILURE);
+	}
+	log_info (*log, "%s", DELIMITADOR_LOG);
+	log_info (*log, "%s%s", APERTURA_DE_ARCHIVO, archivo_log);
+	
+	return;
+}
+
+void iniciar_config (t_config ** config, char * archivo_config, t_log * log)
+{
+	*config = config_create (archivo_config);
+	
+	if (*config == NULL)
+	{
+		log_error (log, "%s%s", ERROR_APERTURA_CONFIG, archivo_config);
+		exit (EXIT_FAILURE);
+	}
+	log_info (log, "%s%s", APERTURA_DE_ARCHIVO, archivo_config);
+	
+	return;
+}
+
+bool leer_valor_de_config (t_config * config, char * clave, char ** valor , t_log * log)
+{
+	if (config_has_property (config, clave))//Valida que existan las claves en config
+	{
+		*valor = config_get_string_value(config, clave);//Guarda el ip del servidor que se encontraba en config
+		log_info (log, "%s%s%s%s", VALOR_DE_CONFIG, clave, " = ", *valor);
+		return true;
+	}
+	log_error (log, "%s%s", CLAVE_NO_ENCONTRADA , clave);
+	return false;
+}
+
+void * leer_de_consola_a_log (void * arg)
+{
+	t_log * log = (t_log *) arg;
+	char * leido = NULL;
+	
+	do
+	{
+		if ( strcmp ( ( leido = readline ("Ingrese cadena(finaliza con un enter):") ), CADENA_VACIA) == 0 )
+			continue;
+		log_info (log, "%s%s", "Consola: ", leido);
+		free (leido);
+	}while( strcmp ( leido , CADENA_VACIA) != 0 );
+	free (leido);
+		
+	return NULL;;
+}
 
