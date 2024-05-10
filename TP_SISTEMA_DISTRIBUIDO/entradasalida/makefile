@@ -33,7 +33,7 @@ release: $(BIN)
 
 .PHONY: clean
 clean:
-	-rm -rfv obj bin
+	-rm -rfv obj bin *.log
 
 $(BIN): $(OBJS) | $(dir $(BIN))
 	$(CC) $(CFLAGS) -o "$@" $^ $(IDIRS:%=-I%) $(LIBDIRS:%=-L%) $(LIBS:%=-l%)
